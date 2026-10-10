@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>المحادثة المحمية - أكارو</title>
+
+    <!-- Tailwind & FontAwesome -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Firebase SDKs (v9 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <style>
+        /* نظام الحماية ومنع النسخ والتحديد والتصوير */
+        * { 
+            font-family: 'Cairo', sans-serif; 
+            box-sizing: border-box; 
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* IE/Edge */
+            user-select: none; /* Standard */
+            -webkit-touch-callout: none; /* Prevent long-press context menu on iOS */
+        }
+
+        /* السماح بالكتابة داخل حقل الإدخال فقط */
+        input, textarea {
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            user-select: text !important;
+        }
+
+        body { 
+            background: #0a0a0e; 
+            color: #f4f4f6; 
+            margin: 0; 
+            height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            overflow: hidden; 
+        }
+
+        /* حاوية التطبيق المتجاوبة */
+        #chat-app-wrapper {
+            width: 100%;
+            height: 100%;
+            background: #0e0e12;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @media (min-width: 768px) {
+            #chat-app-wrapper {
+                max-width: 900px;
+                height: 92vh;
+                border-radius: 28px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            }
+        }
+        
+        #msg-box { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 16px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            scroll-behavior: smooth; 
+        }
+        #msg-box::-webkit-scrollbar { width: 4px; }
+        #msg-box::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+        .bubble { 
+            max-width: 80%; 
+            padding: 11px 15px; 
+            border-radius: 18px; 
+            font-size: 13.5px; 
+            line-height: 1.55; 
+            word-break: break-word; 
+            position: relative;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        @media (min-width: 768px) {
+            .bubble { font-size: 14.5px; padding: 13px 18px; max-width: 70%; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mine { 
+            background: #ffffff; 
+            color: #0e0e12; 
+            align-self: flex-end; 
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 4px; 
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.08); 
+            font-weight: 600;
+        }
+
+        .theirs { 
+            background: #181820; 
+            color: #f4f4f6; 
+            align-self: flex-start; 
+            border-bottom-right-radius: 18px;
+            border-bottom-left-radius: 4px; 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+        }
+
+        .msg-time { 
+            font-size: 9.5px; 
+            margin-top: 4px; 
+            font-weight: 600;
+        }
+        .mine .msg-time { text-align: left; color: #6b7280; }
+        .theirs .msg-time { text-align: right; color: #9ca3af; }
+
+        .inline-emoji {
+            width: 22px;
+            height: 22px;
+            display: inline-block;
+            vertical-align: -4px;
+            margin: 0 2px;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .header-bar {
+            background: #14141c;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .footer { 
+            padding: 10px 14px; 
+            background: #14141c; 
+            display: flex; 
+            gap: 10px; 
+            border-top: 1px solid rgba(255, 255, 255, 0.07); 
+            align-items: center; 
+            z-index: 20;
+        }
+
+        .input-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: #0e0e12;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 0 10px;
+            transition: all 0.25s ease;
+        }
+
+        .input-container:focus-within {
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-input { 
+            flex: 1; 
+            background: transparent;
+            border: none;
+            padding: 11px 8px; 
+            color: white; 
+            outline: none; 
+            font-size: 13.5px; 
+        }
+        @media (min-width: 768px) {
+            .chat-input { font-size: 14.5px; padding: 13px 10px; }
+        }
+
+        .action-btn {
+            background: transparent;
+            border: none;
+            color: #a1a1aa;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .send-btn { 
+            background: #ffffff; 
+            color: #0e0e12;
+            width: 44px; 
+            height: 44px; 
+            border-radius: 14px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            border: none; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            flex-shrink: 0; 
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+        }
+        @media (min-width: 768px) {
+            .send-btn { width: 48px; height: 48px; border-radius: 16px; }
+        }
+        .send-btn:hover { background: #e4e4e7; transform: translateY(-1px); }
+        .send-btn:active { transform: scale(0.92); }
+
+        #emoji-panel {
+            background: #14141c;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            height: 270px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.25s ease-in-out;
+            z-index: 10;
+        }
+
+        #emoji-panel.hidden {
+            display: none !important;
+        }
+
+        .emoji-tabs {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 8px 10px;
+            background: #0e0e12;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .emoji-tab-btn {
+            color: #71717a;
+            font-size: 15px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .emoji-tab-btn.active {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .emoji-grid-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 12px;
+        }
+        .emoji-grid-container::-webkit-scrollbar { width: 4px; }
+        .emoji-grid-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            text-align: center;
+        }
+        @media (min-width: 768px) {
+            .emoji-grid { grid-template-columns: repeat(10, 1fr); }
+        }
+
+        .emoji-item {
+            padding: 6px 0;
+            border-radius: 12px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s ease, background 0.15s ease;
+        }
+        .emoji-item:active { transform: scale(1.25); }
+        .emoji-item:hover { background: rgba(255, 255, 255, 0.08); }
+        .emoji-item img { width: 28px; height: 28px; object-fit: contain; pointer-events: none; }
+
+        .emoji-bottom-bar {
+            padding: 6px 14px;
+            background: #0e0e12;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .backspace-btn {
+            color: #a1a1aa;
+            background: rgba(255, 255, 255, 0.06);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .backspace-btn:active { background: rgba(255, 255, 255, 0.15); transform: scale(0.95); }
+
+        /* طبقة التحذير عند محاولة أخذ لقطة شاشة (تغطية الصفحة) */
+        #privacy-screen {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0e;
+            z-index: 99999;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body onload="initFirebaseApp()">
+
+    <!-- شاشة حماية الخصوصية -->
+    <div id="privacy-screen">
+        <i class="fa-solid fa-shield-halved text-red-500 text-5xl mb-4"></i>
+        <h2 class="text-white text-lg font-bold mb-2">محمية بواسطة نظام أكارو الأمني</h2>
+        <p class="text-zinc-400 text-xs max-w-xs">عذراً، هذه المحادثة محمية ضد التصوير والنسخ للحفاظ على سرية وخصوصية الطرفين.</p>
+    </div>
+
+    <!-- حاوية التطبيق المتجاوبة -->
+    <div id="chat-app-wrapper">
+
+        <!-- Header -->
+        <div class="p-3.5 md:p-4 header-bar flex items-center gap-3 shadow-lg z-10">
+            <button type="button" onclick="history.back()" class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition">
+                <i class="fa-solid fa-arrow-right text-xs md:text-sm"></i>
+            </button>
+            
+            <div class="relative shrink-0">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-white/10 border border-white/10 rounded-full flex items-center justify-center font-bold text-sm md:text-base text-white shadow-inner" id="avatar">?</div>
+                <div id="status-indicator" class="hidden absolute bottom-0 right-0 w-3 h-3 md:w-3.5 md:h-3.5 bg-emerald-500 border-2 border-[#14141c] rounded-full shadow-md"></div>
+            </div>
+
+            <div class="flex-1 min-w-0">
+                <h4 id="chat-title" class="text-xs md:text-sm font-bold text-white truncate">جاري التحميل...</h4>
+                <div id="presence-status" class="flex items-center gap-1.5 mt-0.5">
+                    <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+                    <span id="status-text" class="text-[10px] md:text-xs text-zinc-400 font-medium">غير متصل</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Area -->
+        <div id="msg-box">
+            <div class="flex flex-col items-center justify-center h-full text-zinc-500 gap-2">
+                <i class="fa-solid fa-circle-notch animate-spin text-white text-xl"></i>
+                <span class="text-xs">جاري تحميل المحادثة...</span>
+            </div>
+        </div>
+
+        <!-- Input Footer -->
+        <div class="footer">
+            <div class="input-container">
+                <button type="button" id="emoji-btn" onclick="toggleEmojiPicker(event)" class="action-btn" title="إيموجي">
+                    <i class="fa-regular fa-face-smile text-lg md:text-xl"></i>
+                </button>
+                <input type="text" id="m-input" placeholder="اكتب رسالتك هنا..." class="chat-input" autocomplete="off" onfocus="hideEmojiPicker()">
+            </div>
+            <button type="button" onclick="sendMessage(event)" id="send-btn" class="send-btn">
+                <i class="fa-solid fa-paper-plane text-sm md:text-base"></i>
+            </button>
+        </div>
+
+        <!-- Emoji Panel -->
+        <div id="emoji-panel" class="hidden">
+            <div class="emoji-tabs">
+                <button type="button" onclick="switchCategory('faces', this)" class="emoji-tab-btn active"><i class="fa-regular fa-face-smile"></i></button>
+                <button type="button" onclick="switchCategory('hands', this)" class="emoji-tab-btn"><i class="fa-regular fa-hand"></i></button>
+                <button type="button" onclick="switchCategory('hearts', this)" class="emoji-tab-btn"><i class="fa-regular fa-heart"></i></button>
+                <button type="button" onclick="switchCategory('animals', this)" class="emoji-tab-btn"><i class="fa-solid fa-cat"></i></button>
+                <button type="button" onclick="switchCategory('food', this)" class="emoji-tab-btn"><i class="fa-solid fa-pizza-slice"></i></button>
+                <button type="button" onclick="switchCategory('activities', this)" class="emoji-tab-btn"><i class="fa-solid fa-futbol"></i></button>
+                <button type="button" onclick="switchCategory('objects', this)" class="emoji-tab-btn"><i class="fa-solid fa-lightbulb"></i></button>
+            </div>
+
+            <div class="emoji-grid-container">
+                <div id="emoji-grid" class="emoji-grid"></div>
+            </div>
+
+            <div class="emoji-bottom-bar">
+                <button type="button" onclick="deleteEmoji()" class="backspace-btn" title="مسح">
+                    <i class="fa-solid fa-delete-left text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+    // نظام الحماية والأمان المتقدم
+    document.addEventListener('contextmenu', e => e.preventDefault()); // منع القائمة المنبثقة (Right Click)
+
+    document.addEventListener('keydown', e => {
+        // منع اختصارات النسخ، الحفظ، المطورين، والتصوير
+        if (
+            e.ctrlKey && (e.key === 'c' || e.key === 'C' || e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S' || e.key === 'p' || e.key === 'P') ||
+            e.key === 'F12' ||
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+            e.key === 'PrintScreen'
+        ) {
+            e.preventDefault();
+            triggerPrivacyShield();
+            return false;
+        }
+    });
+
+    // كشف مغادرة النافذة أو محاولة طباعة الشاشة / التصوير
+    window.addEventListener('blur', () => {
+        document.getElementById('privacy-screen').style.display = 'flex';
+    });
+
+    window.addEventListener('focus', () => {
+        document.getElementById('privacy-screen').style.display = 'none';
+    });
+
+    function triggerPrivacyShield() {
+        const shield = document.getElementById('privacy-screen');
+        shield.style.display = 'flex';
+        setTimeout(() => {
+            shield.style.display = 'none';
+        }, 2500);
+    }
+
+    let db, auth, chatId, targetId, partnerName, adId;
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBbLytLmCWW-cy3SY80Yz7HQdaqog5ONKE",
+        authDomain: "youssef-4170d.firebaseapp.com",
+        projectId: "youssef-4170d",
+        storageBucket: "youssef-4170d.appspot.com",
+        appId: "1:333881327588:android:e52a39b64cccd975f551f1"
+    };
+
+    function initFirebaseApp() {
+        if (typeof firebase === 'undefined') {
+            document.getElementById('msg-box').innerHTML = `
+                <div class="text-center text-red-400 text-xs my-auto p-4">
+                    تعذر تحميل مكتبات Firebase. تحقق من الاتصال بالإنترنت.
+                </div>`;
+            return;
+        }
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+        auth = firebase.auth();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        chatId = urlParams.get('chatId');
+        targetId = urlParams.get('target') || urlParams.get('brokerId');
+        partnerName = urlParams.get('name') || "مستخدم";
+        adId = urlParams.get('id') || urlParams.get('adId') || null;
+
+        document.getElementById('chat-title').innerText = partnerName;
+        document.getElementById('avatar').innerText = partnerName.trim()[0]?.toUpperCase() || '?';
+
+        renderEmojiGrid('faces');
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                document.getElementById('msg-box').innerHTML = '<div class="text-center text-red-400 text-xs my-auto">يرجى تسجيل الدخول للوصول إلى الدردشة.</div>';
+                return;
+            }
+
+            setupSelfPresence(user);
+
+            if (!chatId && targetId) {
+                chatId = [user.uid, targetId].sort().join('_');
+            }
+
+            const partnerUid = targetId || (chatId ? chatId.replace(user.uid, '').replace('_', '') : null);
+            if (partnerUid) listenToTargetPresence(partnerUid);
+
+            if (!chatId) {
+                document.getElementById('msg-box').innerHTML = '<div class="text-center text-red-400 text-xs my-auto">خطأ: لم يتم تحديد غرفة المحادثة! تأكد من تمرير target أو chatId في الرابط.</div>';
+                return;
+            }
+
+            db.collection("chats").doc(chatId).collection("messages")
+                .orderBy("time", "asc")
+                .onSnapshot(snapshot => {
+                    const box = document.getElementById('msg-box');
+                    
+                    if (snapshot.empty) {
+                        box.innerHTML = '<div class="text-center text-zinc-500 text-xs md:text-sm my-auto font-medium">لا توجد رسائل سابقة.<br>ابدأ المحادثة الآن!</div>';
+                        return;
+                    }
+
+                    let html = snapshot.docs.map(doc => {
+                        const msg = doc.data();
+                        const isMe = msg.senderId === user.uid;
+                        const parsedText = parseMessageWithAppleEmojis(msg.text || '');
+                        const timeStr = formatTime(msg.time);
+
+                        return `
+                            <div class="bubble ${isMe ? 'mine' : 'theirs'}">
+                                <div>${parsedText}</div>
+                                ${timeStr ? `<div class="msg-time">${timeStr}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+
+                    html += '<div id="scroll-bottom-anchor" class="h-2 w-full"></div>';
+                    box.innerHTML = html;
+
+                    scrollToBottom(true);
+                }, err => {
+                    console.error("Firestore error:", err);
+                    document.getElementById('msg-box').innerHTML = '<div class="text-center text-red-400 text-xs my-auto">تعذر تحميل الرسائل. تحقق من الصلاحيات.</div>';
+                });
+        });
+    }
+
+    function emojiToAppleUrl(emoji) {
+        const comp = Array.from(emoji).map(c => c.codePointAt(0).toString(16)).filter(x => x !== 'fe0f');
+        return `https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.0.1/img/apple/64/${comp.join('-')}.png`;
+    }
+
+    function parseMessageWithAppleEmojis(text) {
+        if (!text) return '';
+        const escaped = escapeHtml(text);
+        const emojiRegex = /(\p{Extended_Pictographic}|\p{Emoji_Presentation})/gu;
+        return escaped.replace(emojiRegex, (match) => {
+            const url = emojiToAppleUrl(match);
+            return `<img src="${url}" class="inline-emoji" alt="${match}" onerror="this.outerHTML='${match}'" />`;
+        });
+    }
+
+    const emojiCategories = {
+        faces: ['😀','😃','😄','😁','😆','🥹','😅','😂','🤣','🥲','☺️','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😮‍💨','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🫣','🫡','🤔','🤫','🫠'],
+        hands: ['👋','🤚','🖐️','✋','🖖','👌','🤌','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪'],
+        hearts: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','💌','🫀'],
+        animals: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪲','🐛','🦋','🐌','🐬','🐳','🦈','🦭'],
+        food: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🥑','🍆','🌽','🌶️','🥒','🥬','🥦','🥐','🍞','🥖','🥨','🧀','🍳','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🥙','🧆','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🍘','🍥','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🥛','☕','🍵','🧃','🥤','🧋','🍺','🍻','🥂','🍷','🥃','🍸','🍹'],
+        activities: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🎱','🏓','🏸','🏒','🏑','🥍','🏏','⛳','🪁','🏹','🎣','🥊','🥋','🛹','🛼','🏋️','🤼','🤸','⛹️','🤺','🤾','🏌️','🏇','🧘','🏄','🏊']
+    };
+
+    let currentCategory = 'faces';
+
+    function switchCategory(category, btn) {
+        currentCategory = category;
+        document.querySelectorAll('.emoji-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderEmojiGrid(category);
+    }
+
+    function renderEmojiGrid(category) {
+        const grid = document.getElementById('emoji-grid');
+        const emojis = emojiCategories[category] || [];
+        grid.innerHTML = emojis.map(emoji => `
+            <div class="emoji-item" onclick="insertEmoji('${emoji}')">
+                <img src="${emojiToAppleUrl(emoji)}" alt="${emoji}" onerror="this.outerHTML='<span>${emoji}</span>'" />
+            </div>
+        `).join('');
+    }
+
+    function toggleEmojiPicker(event) {
+        if (event) event.preventDefault();
+        const panel = document.getElementById('emoji-panel');
+        const input = document.getElementById('m-input');
+        if (panel.classList.contains('hidden')) {
+            input.blur(); 
+            panel.classList.remove('hidden');
+        } else {
+            panel.classList.add('hidden');
+        }
+    }
+
+    function hideEmojiPicker() {
+        const panel = document.getElementById('emoji-panel');
+        if (!panel.classList.contains('hidden')) {
+            panel.classList.add('hidden');
+        }
+    }
+
+    function insertEmoji(emoji) {
+        const input = document.getElementById('m-input');
+        const start = input.selectionStart || input.value.length;
+        const end = input.selectionEnd || input.value.length;
+        const text = input.value;
+        input.value = text.substring(0, start) + emoji + text.substring(end);
+        input.selectionStart = input.selectionEnd = start + emoji.length;
+    }
+
+    function deleteEmoji() {
+        const input = document.getElementById('m-input');
+        const start = input.selectionStart || input.value.length;
+        const end = input.selectionEnd || input.value.length;
+        const text = input.value;
+        if (start > 0 || start !== end) {
+            const newStart = start === end ? start - 1 : start;
+            input.value = text.substring(0, newStart) + text.substring(end);
+            input.selectionStart = input.selectionEnd = newStart;
+        }
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '';
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function scrollToBottom(smooth = false) {
+        const box = document.getElementById('msg-box');
+        const anchor = document.getElementById('scroll-bottom-anchor');
+        if (anchor) {
+            anchor.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+        } else {
+            box.scrollTop = box.scrollHeight;
+        }
+    }
+
+    function sendMessage(event) {
+        if (event) event.preventDefault();
+        const input = document.getElementById('m-input');
+        const text = input.value.trim();
+        if (!text || !chatId || !auth.currentUser) return;
+
+        const currentUserId = auth.currentUser.uid;
+        const recipientId = targetId || chatId.replace(currentUserId, '').replace('_', '');
+        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+
+        const messageData = {
+            senderId: currentUserId,
+            text: text,
+            time: timestamp
+        };
+
+        input.value = '';
+
+        db.collection("chats").doc(chatId).collection("messages").add(messageData)
+            .then(() => {
+                scrollToBottom(true);
+            })
+            .catch(err => console.error("Error sending message:", err));
+
+        db.collection("chats").doc(chatId).set({
+            participants: [currentUserId, recipientId],
+            adId: adId,
+            lastMessage: text,
+            updatedAt: timestamp
+        }, { merge: true })
+        .catch(err => console.error("Error updating main chat doc:", err));
+    }
+
+    function setupSelfPresence(user) {
+        const userStatusRef = db.collection('status').doc(user.uid);
+
+        userStatusRef.set({
+            state: 'online',
+            lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        window.addEventListener('beforeunload', () => {
+            userStatusRef.set({
+                state: 'offline',
+                lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        });
+    }
+
+    function listenToTargetPresence(targetUid) {
+        db.collection('status').doc(targetUid).onSnapshot(doc => {
+            const data = doc.data();
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const indicator = document.getElementById('status-indicator');
+
+            if (data && data.state === 'online') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse";
+                text.innerText = "متصل الآن";
+                text.className = "text-[10px] md:text-xs text-emerald-400 font-medium";
+                indicator.classList.remove('hidden');
+            } else {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-zinc-600";
+                text.innerText = "غير متصل";
+                text.className = "text-[10px] md:text-xs text-zinc-400 font-medium";
+                indicator.classList.add('hidden');
+            }
+        });
+    }
+</script>
+</body>
+</html>

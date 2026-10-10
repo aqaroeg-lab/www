@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الملف الاحترافي للوسيط العقاري | Aqaro Pro</title>
+    <!-- مكتبات فايربيز -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            background-color: #0b0b0e; 
+            color: #f3f4f6; 
+            font-family: 'Cairo', sans-serif; 
+            min-height: 100vh; 
+            width: 100%;
+            overflow-x: hidden;
+            padding-bottom: 100px;
+        }
+
+        /* شريط التنقل العلوي وزر الرجوع */
+        .top-nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: rgba(18, 18, 24, 0.85); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .back-btn { width: 40px; height: 40px; border-radius: 12px; background: #16161f; border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 14px; }
+        .back-btn:active { transform: scale(0.92); background: #222230; }
+        .nav-title { font-size: 14px; font-weight: 700; color: #9ca3af; }
+
+        /* هيدر البروفايل الفاخر */
+        .broker-header { background: radial-gradient(circle at top, #1c1c2b 0%, #0b0b0e 70%); padding: 40px 20px 30px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); position: relative; width: 100%; }
+        .profile-wrapper { position: relative; width: 120px; height: 120px; margin: 0 auto 15px; }
+        .profile-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #ef4444; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.25); background-color: #16161f; }
+        .verify-badge { position: absolute; bottom: 4px; right: 4px; background: #06b6d4; border-radius: 50%; width: 28px; height: 28px; display: none; align-items: center; justify-content: center; border: 2px solid #0b0b0e; font-size: 12px; color: white; box-shadow: 0 4px 10px rgba(6, 182, 212, 0.4); }
+
+        .broker-name { font-size: 22px; font-weight: 900; color: #ffffff; margin-bottom: 6px; letter-spacing: -0.5px; }
+        .broker-date { font-size: 12px; color: #6b7280; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+
+        /* قسم المتابعين */
+        .follow-stats { display: flex; justify-content: center; gap: 40px; margin: 18px 0; }
+        .f-stat { text-align: center; }
+        .f-num { display: block; font-size: 19px; font-weight: 900; color: #fff; line-height: 1.2; }
+        .f-label { font-size: 12px; color: #9ca3af; font-weight: 600; }
+        
+        /* زر المتابعة */
+        .follow-btn { margin-top: 5px; background: #ef4444; color: white; border: none; padding: 11px 50px; border-radius: 25px; font-size: 14px; font-weight: 800; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); }
+        .follow-btn:active { transform: scale(0.95); }
+        .follow-btn.following { background: #13131a; border: 1px solid rgba(255,255,255,0.15); color: #fff; box-shadow: none; }
+        .follow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* شبكة الإحصائيات الاحترافية المتجاوبة */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 600px; margin: 25px auto 0; padding: 0 15px; }
+        .stat-card { background: #13131a; padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; gap: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .stat-icon { width: 42px; height: 42px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .stat-icon.blue { background: rgba(6, 182, 212, 0.1); color: #06b6d4; }
+        .stat-info { text-align: right; }
+        .stat-v { display: block; font-weight: 900; font-size: 17px; color: #ffffff; line-height: 1.2; }
+        .stat-l { font-size: 11px; color: #9ca3af; font-weight: 700; margin-top: 2px; }
+
+        /* قسم الإعلانات */
+        .section-title { padding: 30px 24px 12px; font-size: 14px; font-weight: 800; color: #9ca3af; display: flex; align-items: center; justify-content: space-between; max-width: 1400px; margin: 0 auto; }
+        
+        /* شبكة الإعلانات المتجاوبة بالكامل لجميع الشاشات (تتوسع على الكمبيوتر وتصغر على الجوال) */
+        .ads-container { padding: 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; max-width: 1400px; margin: 0 auto; }
+        
+        .ad-box { background: #13131a; border-radius: 18px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.06); position: relative; cursor: pointer; transition: all 0.25s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .ad-box:hover { border-color: rgba(239, 68, 68, 0.3); transform: translateY(-3px); }
+        .ad-box:active { transform: scale(0.97); }
+        .ad-img-wrapper { position: relative; width: 100%; height: 160px; background-color: #1a1a24; }
+        .ad-img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .ad-v-tag { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(6px); padding: 4px 10px; border-radius: 8px; font-size: 10px; color: #34d399; font-weight: 700; border: 1px solid rgba(52, 211, 153, 0.2); display: flex; align-items: center; gap: 4px; }
+        
+        .ad-content { padding: 14px; }
+        .ad-price { font-weight: 900; font-size: 14px; color: #ef4444; margin-bottom: 6px; }
+        .ad-title { font-size: 12px; color: #d1d5db; font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; line-height: 1.4; }
+
+        .empty-msg { grid-column: 1 / -1; text-align: center; color: #6b7280; padding: 60px 0; font-size: 13px; font-weight: 600; background: #13131a; border-radius: 18px; border: 1px dashed rgba(255,255,255,0.08); }
+
+        /* زر الدردشة العائم الثابت بيسار الشاشة */
+        .floating-chat { position: fixed; bottom: 30px; left: 30px; width: 60px; height: 60px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(239, 68, 68, 0.45); cursor: pointer; border: none; z-index: 999; transition: all 0.25s ease; color: white; font-size: 22px; }
+        .floating-chat:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+    <!-- شريط التنقل العلوي -->
+    <div class="top-nav">
+        <button class="back-btn" onclick="history.back()" title="رجوع للخلف">
+            <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <span class="nav-title">الملف الشخصي للوسيط</span>
+        <div style="width: 40px;"></div>
+    </div>
+
+    <!-- هيدر البروفايل -->
+    <div class="broker-header">
+        <div class="profile-wrapper">
+            <img id="b-img" src="https://via.placeholder.com/120?text=Broker" class="profile-img" alt="صورة المعلن" onerror="this.src='https://via.placeholder.com/120?text=Broker'">
+            <div id="v-icon" class="verify-badge"><i class="fa-solid fa-check"></i></div>
+        </div>
+        <h1 id="b-name" class="broker-name">جاري التحميل...</h1>
+        <p id="b-date" class="broker-date"><i class="fa-regular fa-calendar-days"></i> <span id="date-text">--</span></p>
+
+        <!-- أرقام المتابعات -->
+        <div class="follow-stats">
+            <div class="f-stat">
+                <span id="followers-count" class="f-num">0</span>
+                <span class="f-label">متابعون</span>
+            </div>
+            <div class="f-stat">
+                <span id="following-count" class="f-num">0</span>
+                <span class="f-label">يُتابع</span>
+            </div>
+        </div>
+
+        <!-- زر المتابعة -->
+        <button id="follow-btn" class="follow-btn" style="display: none;">متابعة</button>
+
+        <!-- شبكة الإحصائيات -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-signs-post"></i></div>
+                <div class="stat-info">
+                    <span id="count-ads" class="stat-v">0</span>
+                    <span class="stat-l">الإعلانات النشطة</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon blue"><i class="fa-solid fa-eye"></i></div>
+                <div class="stat-info">
+                    <span id="count-views" class="stat-v">0</span>
+                    <span class="stat-l">إجمالي المشاهدات</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <span>عقارات وإعلانات الوسيط</span>
+        <i class="fa-solid fa-building-shield text-zinc-500"></i>
+    </div>
+
+    <!-- قائمة الإعلانات -->
+    <div id="ads-list" class="ads-container">
+        <div class="empty-msg"><i class="fa-solid fa-circle-notch fa-spin text-red-500 text-lg mb-2 block"></i> جاري تحميل الإعلانات...</div>
+    </div>
+
+    <!-- زر الدردشة الثابت -->
+    <button id="start-chat" class="floating-chat" title="دردشة">
+        <i class="fa-solid fa-comment-dots"></i>
+    </button>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBbLytLmCWW-cy3SY80Yz7HQdaqog5ONKE",
+            authDomain: "youssef-4170d.firebaseapp.com",
+            projectId: "youssef-4170d",
+            storageBucket: "youssef-4170d.appspot.com",
+            appId: "1:333881327588:android:e52a39b64cccd975f551f1"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text || '';
+            return div.innerHTML;
+        }
+
+        const brokerId = new URLSearchParams(window.location.search).get('id');
+        let currentBrokerName = "معلن";
+        let currentUserId = null;
+        let isFollowing = false;
+        
+        const followBtn = document.getElementById('follow-btn');
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUserId = user.uid;
+                if(currentUserId !== brokerId && brokerId) {
+                    followBtn.style.display = 'inline-block';
+                    checkIfFollowing();
+                } else {
+                    followBtn.style.display = 'none';
+                }
+            } else {
+                if(brokerId) followBtn.style.display = 'inline-block';
+            }
+        });
+
+        if (!brokerId) {
+            document.getElementById('b-name').innerText = "المعلن غير موجود";
+            document.getElementById('ads-list').innerHTML = '<div class="empty-msg">لم يتم تحديد معلن لعرض بياناته.</div>';
+        } else {
+            db.collection('users').doc(brokerId).onSnapshot(doc => {
+                if (doc.exists) {
+                    const u = doc.data();
+                    currentBrokerName = u.name || u.displayName || "معلن موثق";
+                    document.getElementById('b-name').innerText = currentBrokerName;
+                    
+                    const profileImgUrl = u.profileImg || u.photoURL || u.image || "https://via.placeholder.com/120?text=Broker";
+                    document.getElementById('b-img').src = profileImgUrl;
+                    document.getElementById('date-text').innerText = "انضم في " + (u.joinDate || "2026");
+                    document.getElementById('v-icon').style.display = (u.isVerified === true) ? 'flex' : 'none';
+
+                    document.getElementById('followers-count').innerText = u.followersCount || 0;
+                    document.getElementById('following-count').innerText = u.followingCount || 0;
+                } else {
+                    document.getElementById('b-name').innerText = "حساب غير موجود";
+                    document.getElementById('ads-list').innerHTML = '<div class="empty-msg">عذراً، هذا الحساب غير متوفر.</div>';
+                }
+            });
+
+            db.collection('ads').where('userId', '==', brokerId).onSnapshot(snap => {
+                let html = '';
+                let totalViews = 0;
+                document.getElementById('count-ads').innerText = snap.size;
+
+                if (snap.empty) {
+                    document.getElementById('ads-list').innerHTML = '<div class="empty-msg">لا توجد إعلانات معروضة حالياً.</div>';
+                    document.getElementById('count-views').innerText = 0;
+                    return;
+                }
+
+                snap.forEach(adDoc => {
+                    const ad = adDoc.data();
+                    const v = Number(ad.views) || 0;
+                    totalViews += v;
+                    const priceFormatted = (Number(ad.price) || 0).toLocaleString();
+                    const titleSafe = escapeHtml(ad.title || 'إعلان بدون عنوان');
+                    const imageSrc = ad.image || (ad.allImages && ad.allImages.length ? ad.allImages[0] : 'https://via.placeholder.com/300x200?text=No+Image');
+
+                    html += `
+                        <div class="ad-box" onclick="location.href='details.html?id=${adDoc.id}'">
+                            <div class="ad-img-wrapper">
+                                <span class="ad-v-tag"><i class="fa-solid fa-eye text-[9px]"></i> ${v}</span>
+                                <img class="ad-img" src="${imageSrc}" alt="${titleSafe}">
+                            </div>
+                            <div class="ad-content">
+                                <div class="ad-price">${priceFormatted} ج.م</div>
+                                <div class="ad-title">${titleSafe}</div>
+                            </div>
+                        </div>`;
+                });
+
+                document.getElementById('ads-list').innerHTML = html;
+                document.getElementById('count-views').innerText = totalViews.toLocaleString();
+            });
+
+            document.getElementById('start-chat').onclick = () => {
+                location.href = `direct_chat.html?target=${brokerId}&name=${encodeURIComponent(currentBrokerName)}`;
+            };
+        }
+
+        function checkIfFollowing() {
+            db.collection('users').doc(brokerId).collection('followers').doc(currentUserId)
+              .onSnapshot(doc => {
+                if (doc.exists) {
+                    isFollowing = true;
+                    followBtn.innerText = "إلغاء المتابعة";
+                    followBtn.classList.add('following');
+                } else {
+                    isFollowing = false;
+                    followBtn.innerText = "متابعة";
+                    followBtn.classList.remove('following');
+                }
+            });
+        }
+
+        followBtn.addEventListener('click', async () => {
+            if (!currentUserId) {
+                alert("يرجى تسجيل الدخول أولاً لتتمكن من المتابعة.");
+                return;
+            }
+
+            followBtn.disabled = true;
+            const brokerRef = db.collection('users').doc(brokerId);
+            const currentUserRef = db.collection('users').doc(currentUserId);
+            
+            const brokerFollowerRef = brokerRef.collection('followers').doc(currentUserId);
+            const currentUserFollowingRef = currentUserRef.collection('following').doc(brokerId);
+
+            const batch = db.batch();
+            const increment = firebase.firestore.FieldValue.increment(1);
+            const decrement = firebase.firestore.FieldValue.increment(-1);
+
+            if (isFollowing) {
+                batch.delete(brokerFollowerRef);
+                batch.delete(currentUserFollowingRef);
+                batch.set(brokerRef, { followersCount: decrement }, { merge: true });
+                batch.set(currentUserRef, { followingCount: decrement }, { merge: true });
+            } else {
+                batch.set(brokerFollowerRef, { timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                batch.set(currentUserFollowingRef, { timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                batch.set(brokerRef, { followersCount: increment }, { merge: true });
+                batch.set(currentUserRef, { followingCount: increment }, { merge: true });
+            }
+
+            try {
+                await batch.commit();
+            } catch (error) {
+                console.error("حدث خطأ أثناء المتابعة: ", error);
+                alert("حدث خطأ، يرجى المحاولة لاحقاً.");
+            } finally {
+                followBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

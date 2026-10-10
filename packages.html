@@ -1,0 +1,237 @@
+<div class="space-y-6 pb-28 text-right font-sans antialiased" dir="rtl">
+    <!-- كارد الرصيد الحالي بطريقة زجاجية فاخرة -->
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 p-6 border border-zinc-800/80 shadow-2xl backdrop-blur-xl">
+        <div class="absolute -left-10 -bottom-10 w-32 h-32 bg-red-600/15 rounded-full blur-2xl pointer-events-none"></div>
+        <div class="absolute -right-10 -top-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <div class="flex items-center justify-between relative z-10">
+            <div>
+                <span class="text-[11px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">رصيدك الحالي في المحفظة</span>
+                <div class="flex items-baseline gap-2">
+                    <h2 id="balance-val" class="text-3xl font-black text-white tracking-tight">0</h2>
+                    <span class="text-xs text-red-500 font-black">ج.م</span>
+                </div>
+            </div>
+            
+            <a href="deposit.html" class="px-4 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700/60 text-white text-xs font-bold transition-all active:scale-95 shadow-lg flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-red-500"></i>
+                <span>شحن المحفظة</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- حاوية الباقات -->
+    <div>
+        <h3 class="text-xs font-extrabold text-zinc-400 mb-3 px-1 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span>باقات الترقية والتميز المتاحة</span>
+        </h3>
+        <div id="plans-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="text-center text-zinc-500 py-12 text-xs font-bold bg-zinc-900/40 rounded-3xl border border-zinc-800/50">
+                <i class="fa-solid fa-circle-notch animate-spin text-red-500 text-base mb-2 block"></i>
+                جاري تحميل الباقات المتاحة...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة تأكيد الشراء التفاعلية -->
+<div id="confirm-dialog" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-[120] transition-all duration-300">
+    <div class="bg-zinc-900 border border-zinc-800 w-full max-w-sm p-6 rounded-3xl text-center space-y-5 shadow-2xl relative overflow-hidden transform scale-95 transition-all">
+        <div class="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto text-red-500 text-xl shadow-lg shadow-red-500/5">
+            <i class="fa-solid fa-gem"></i>
+        </div>
+        
+        <div>
+            <h3 id="dialog-plan-title" class="text-sm font-black text-white mb-1">تأكيد الاشتراك</h3>
+            <p id="dialog-plan-desc" class="text-xs text-zinc-400 leading-relaxed font-bold px-2">هل أنت متأكد من رغبتك في الاشتراك وسيتم خصم المبلغ من رصيدك فوراً؟</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5 pt-2">
+            <button id="confirm-purchase-btn" class="py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black text-xs shadow-lg shadow-red-600/25 active:scale-95 transition-all">
+                تأكيد ودفع
+            </button>
+            <button onclick="window.closeConfirmDialog()" class="py-3.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs active:scale-95 transition-all border border-zinc-700/50">
+                إلغاء
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.selectedPlanData = null;
+    window.currentUserUid = null;
+
+    // تسجيل دالة فتح وإغلاق المودال على window لمنع ReferenceError
+    window.openConfirmDialog = function(id, name, price) {
+        window.selectedPlanData = { id, name, price };
+        const titleEl = document.getElementById('dialog-plan-title');
+        const descEl = document.getElementById('dialog-plan-desc');
+        const dialogEl = document.getElementById('confirm-dialog');
+        
+        if (titleEl) titleEl.innerText = `اشتراك: ${name}`;
+        if (descEl) descEl.innerText = `سيتم خصم مبلغ (${price} ج.م) وتفعيل الباقة لحسابك فوراً.`;
+        
+        if (dialogEl) {
+            dialogEl.classList.remove('hidden');
+            dialogEl.classList.add('flex');
+        }
+    };
+
+    window.closeConfirmDialog = function() {
+        const dialogEl = document.getElementById('confirm-dialog');
+        if (dialogEl) {
+            dialogEl.classList.add('hidden');
+            dialogEl.classList.remove('flex');
+        }
+        window.selectedPlanData = null;
+    };
+
+    // مراقبة حالة تسجيل الدخول بسلامة
+    if (typeof auth !== 'undefined') {
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                window.currentUserUid = user.uid;
+                
+                if (typeof db !== 'undefined') {
+                    db.collection('users').doc(user.uid).onSnapshot(doc => {
+                        const balanceEl = document.getElementById('balance-val');
+                        if (!balanceEl) return;
+                        
+                        if (doc.exists) {
+                            balanceEl.innerText = Number(doc.data().balance || 0).toLocaleString();
+                        } else {
+                            db.collection('users').doc(user.uid).set({ balance: 0 }, { merge: true });
+                            balanceEl.innerText = "0";
+                        }
+                    }, err => console.error("خطأ قراءة الرصيد:", err));
+                }
+            } else {
+                window.currentUserUid = null;
+                const balanceEl = document.getElementById('balance-val');
+                if (balanceEl) balanceEl.innerText = "0";
+            }
+        });
+    }
+
+    // جلب الباقات لعرضها
+    if (typeof db !== 'undefined') {
+        db.collection("packages").onSnapshot(s => {
+            const cont = document.getElementById('plans-container');
+            if (!cont) return;
+            cont.innerHTML = "";
+            
+            if (s.empty) {
+                cont.innerHTML = `<div class="text-center text-zinc-500 py-12 text-xs font-bold bg-zinc-900/40 rounded-3xl border border-zinc-800/50">لا توجد باقات متاحة حالياً، يرجى المتابعة لاحقاً</div>`;
+                return;
+            }
+
+            s.forEach(doc => {
+                const p = doc.data();
+                const planId = doc.id;
+                const safeName = (p.name || 'باقة مميزة').replace(/'/g, "\\'");
+                const price = Number(p.price || 0);
+
+                cont.innerHTML += `
+                <div class="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 relative shadow-xl hover:border-zinc-700 transition-all flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-black text-white text-sm">${p.name || 'باقة مميزة'}</h4>
+                                ${p.discount ? `<span class="bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-black px-2 py-0.5 rounded-md mt-1 inline-block">خصم ${p.discount}%</span>` : ''}
+                            </div>
+                            <div class="text-left">
+                                <span class="text-xl font-black text-red-500">${price.toLocaleString()}</span>
+                                <span class="text-[9px] text-zinc-400 font-bold block">ج.م</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 py-3 border-t border-b border-zinc-800/80 my-3 text-[11px] font-bold text-zinc-300">
+                            <div class="flex items-center justify-between">
+                                <span class="text-zinc-400 flex items-center gap-1.5"><i class="fa-solid fa-bolt text-yellow-500 text-[10px]"></i> عمليات التمييز:</span>
+                                <span class="text-white font-black">${p.boosts || 0} عملية</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-zinc-400 flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-red-500 text-[10px]"></i> الأحياء المسموحة:</span>
+                                <span class="text-white font-black">${p.districts || 0} حي</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-zinc-400 flex items-center gap-1.5"><i class="fa-solid fa-video text-emerald-500 text-[10px]"></i> الفيديوهات (ريلز):</span>
+                                <span class="text-white font-black">${p.reelsLimit || 0} فيديو</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="window.openConfirmDialog('${planId}', '${safeName}', ${price})" class="w-full mt-2 py-3 rounded-2xl bg-red-600 hover:bg-red-500 shadow-lg shadow-red-600/20 text-xs font-black text-white transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <span>اشتراك الآن</span>
+                        <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                    </button>
+                </div>`;
+            });
+        });
+    }
+
+    // زر تأكيد الشراء بالتحديث الآمن لـ Firestore Transaction
+    const confirmBtn = document.getElementById('confirm-purchase-btn');
+    if (confirmBtn) {
+        confirmBtn.onclick = async function() {
+            if (!window.selectedPlanData) return;
+            
+            if (!window.currentUserUid) {
+                alert("يرجى تسجيل الدخول أولاً لإتمام الشراء");
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerText = "جاري المعالجة...";
+
+            try {
+                const userRef = db.collection('users').doc(window.currentUserUid);
+                
+                await db.runTransaction(async (transaction) => {
+                    const userDoc = await transaction.get(userRef);
+                    if (!userDoc.exists) throw new Error("بيانات المستخدم غير موجودة");
+
+                    const currentBalance = Number(userDoc.data().balance || 0);
+                    const price = Number(window.selectedPlanData.price);
+
+                    if (currentBalance < price) {
+                        throw new Error("INSUFFICIENT_BALANCE");
+                    }
+
+                    transaction.update(userRef, {
+                        balance: currentBalance - price,
+                        activePlanId: window.selectedPlanData.id,
+                        planUpdatedAt: new Date()
+                    });
+
+                    const transRef = db.collection('transactions').doc();
+                    transaction.set(transRef, {
+                        userId: window.currentUserUid,
+                        type: 'package_purchase',
+                        planId: window.selectedPlanData.id,
+                        planName: window.selectedPlanData.name,
+                        amount: price,
+                        createdAt: new Date()
+                    });
+                });
+
+                window.closeConfirmDialog();
+                alert("تم الاشتراك بنجاح وتفعيل الباقة!");
+                
+            } catch (error) {
+                console.error("خطأ الشراء:", error);
+                if (error.message === "INSUFFICIENT_BALANCE") {
+                    alert("رصيدك غير كافي لإتمام هذه العملية! سيتم تحويلك لصفحة شحن الرصيد.");
+                    window.location.href = "deposit.html";
+                } else {
+                    alert("حدث خطأ أثناء العملية: " + error.message);
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "تأكيد ودفع";
+            }
+        };
+    }
+</script>
